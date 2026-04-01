@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetterHud Studio Modern v4.6 - Taemin Electronics</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #111112; --panel: #1e1e1f; --sidebar: #252526; --accent: #3b82f6; 
+            --accent-hover: #2563eb; --text: #e5e7eb; --text-light: #9ca3af; 
+            --border: #333334; --input-bg: #121213; --radius: 8px;
+            --canvas-bg: #0c0c0d; --item-bg: #2d2d2e; --item-hover: #353536;
+            --btn-bg: #333334; --btn-hover: #3f3f40; --btn-text: #fff;
+            --shadow: rgba(0,0,0,0.6); --canvas-border: #333;
+        }
+
+        [data-theme="light"] {
+            --bg: #f3f4f6; --panel: #ffffff; --sidebar: #f8fafc; --accent: #2563eb; 
+            --accent-hover: #1d4ed8; --text: #1f2937; --text-light: #64748b; 
+            --border: #e2e8f0; --input-bg: #ffffff;
+            --canvas-bg: #e2e8f0; --item-bg: #e2e8f0; --item-hover: #cbd5e1;
+            --btn-bg: #ffffff; --btn-hover: #f1f5f9; --btn-text: #1f2937;
+            --shadow: rgba(0,0,0,0.15); --canvas-border: #cbd5e1;
+        }
+
+        body { margin: 0; font-family: 'Pretendard', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; transition: background 0.3s, color 0.3s; }
+
+        header { height: 60px; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; transition: 0.3s; }
+        .logo { font-weight: 800; font-size: 1.1rem; color: var(--accent); letter-spacing: -0.5px; }
+        .actions { display: flex; gap: 8px; }
+
+        main { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 300px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0; transition: 0.3s; }
+        .inspector { width: 300px; border-right: none; border-left: 1px solid var(--border); background: var(--sidebar); flex-shrink: 0; transition: 0.3s; }
+
+        .section { padding: 16px; border-bottom: 1px solid var(--border); }
+        .section-title { font-size: 11px; font-weight: 700; color: var(--text-light); text-transform: uppercase; margin-bottom: 14px; letter-spacing: 0.1em; }
+
+        .canvas-container-view { flex: 1; display: flex; align-items: center; justify-content: center; background: var(--canvas-bg); overflow: hidden; transition: 0.3s; }
+        
+        .canvas-wrapper { 
+            background: #000; 
+            box-shadow: 0 0 40px var(--shadow); 
+            border: 1px solid var(--canvas-border); 
+            transform-origin: center center; 
+            transition: width 0.3s, height 0.3s;
+        }
+
+        .btn { padding: 9px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--btn-bg); color: var(--btn-text); cursor: pointer; font-weight: 600; font-size: 13px; transition: 0.2s; }
+        .btn:hover { background: var(--btn-hover); }
+        .btn-primary { background: var(--accent); border: none; color: #fff; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-save-direct { background: #10b981; border: none; width: 100%; margin-top: 8px; color: #fff; }
+
+        .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .input-group { margin-bottom: 12px; }
+        .input-group label { display: block; font-size: 11px; font-weight: 600; color: var(--text-light); margin-bottom: 6px; }
+        input, select, textarea { width: 100%; padding: 10px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; outline: none; box-sizing: border-box; transition: 0.3s; }
+        input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+        
+        .checkbox-group { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; color: var(--text); }
+        .checkbox-group input[type="checkbox"] { width: 16px; height: 16px; margin: 0; }
+
+        .layer-item { padding: 10px 12px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; background: var(--item-bg); font-size: 13px; border: 1px solid transparent; transition: 0.2s; }
+        .layer-item:hover { background: var(--item-hover); }
+        .layer-item.active { background: rgba(59, 130, 246, 0.1); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .modal-content { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; width: 600px; max-width: 90%; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.5); overflow: hidden; }
+        .modal-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 15px; }
+        .modal-body { padding: 20px; overflow-y: auto; display: flex; gap: 20px; flex: 1; }
+        .modal-footer { padding: 16px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--sidebar); }
+        
+        .font-list-wrap { width: 200px; border-right: 1px solid var(--border); padding-right: 16px; display: flex; flex-direction: column; gap: 8px; }
+        .font-editor-wrap { flex: 1; display: flex; flex-direction: column; }
+        .font-item { padding: 10px; background: var(--item-bg); border-radius: 6px; cursor: pointer; font-size: 13px; border: 1px solid transparent; display: flex; justify-content: space-between; align-items: center; }
+        .font-item:hover { background: var(--item-hover); }
+        .font-item.active { border-color: var(--accent); background: rgba(59, 130, 246, 0.1); }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-thumb { background: #555; border-radius: 10px; }
+        ::-webkit-scrollbar-corner { background: transparent; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">TAEMIN ELECTRONICS BH Studio <span style="font-weight:400; font-size:0.8rem; opacity:0.6;">v4.6 (Heads 폴더 분리)</span></div>
+    <div class="actions">
+        <button class="btn" id="btn-theme" onclick="toggleTheme()">☀️ 라이트 모드</button>
+        <button class="btn" onclick="togglePanels()">↔️ 패널 접기</button>
+        <button class="btn" onclick="saveProject()">💾 프로젝트 저장 (.json)</button>
+        <button class="btn" onclick="document.getElementById('load-input').click()">📁 불러오기</button>
+        <button class="btn btn-primary" onclick="exportZip()">📦 ZIP 추출 (웹용)</button>
+    </div>
+</header>
+
+<main>
+    <aside class="sidebar" id="left-sidebar">
+        <div class="section">
+            <div class="section-title">작업공간 해상도</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                <div class="input-group"><label>가로 (W)</label><input type="number" id="ui-canvas-w" value="1920"></div>
+                <div class="input-group"><label>세로 (H)</label><input type="number" id="ui-canvas-h" value="1080"></div>
+            </div>
+            <button class="btn" style="width:100%;" onclick="applyResolution()">🖥️ 해상도 적용</button>
+        </div>
+
+        <div class="section">
+            <div class="section-title">폰트 설정 (texts)</div>
+            <button class="btn btn-primary" style="width:100%;" onclick="openFontModal()">🔤 커스텀 폰트 관리자</button>
+        </div>
+
+        <div class="section">
+            <div class="section-title">글로벌 HUD 설정</div>
+            <div class="input-group"><label>HUD ID</label><input type="text" id="ui-hud-id" value="main_hud"></div>
+            <div class="input-group"><label>Layout ID</label><input type="text" id="ui-layout-id" value="main_layout"></div>
+            <button class="btn btn-save-direct" onclick="directSaveToFolder()">⚡ 플러그인 즉시 저장 (Electron)</button>
+        </div>
+
+        <div class="section">
+            <div class="section-title">요소 추가</div>
+            <div class="tool-grid">
+                <button class="btn" onclick="addText()">📝 텍스트</button>
+                <button class="btn" onclick="document.getElementById('img-input').click()">🖼️ 이미지</button>
+                <button class="btn" onclick="addHead()">👤 머리</button>
+                <button class="btn" onclick="deleteObject()" style="color:#ef4444; border-color:#fca5a5;">🗑️ 삭제</button>
+            </div>
+        </div>
+
+        <div class="section" style="flex:1">
+            <div class="section-title">레이어 목록</div>
+            <div id="layer-list"></div>
+        </div>
+    </aside>
+
+    <div class="canvas-container-view">
+        <div class="canvas-wrapper">
+            <canvas id="editor"></canvas>
+        </div>
+    </div>
+
+    <aside class="sidebar inspector" id="right-sidebar">
+        <div id="no-selection" style="padding:40px; text-align:center; color:var(--text-light); font-size:13px;">요소를 선택하여<br>속성을 편집하세요.</div>
+        <div id="inspector-ui" style="display:none">
+            <div class="section">
+                <div class="section-title">기본 속성 (layouts.yml 내부 좌표)</div>
+                <div class="input-group"><label>컴포넌트 아이디</label><input type="text" id="ui-id" oninput="updateSelected('bhId', value)"></div>
+                <div class="input-group">
+                    <label>고정 크기 (Static Scale)</label>
+                    <select id="ui-static" onchange="updateSelected('bhStatic', value)">
+                        <option value="true">항상 같은 크기 (추천)</option>
+                        <option value="false">GUI 비율 따름</option>
+                    </select>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                    <div class="input-group"><label>절대 X 좌표</label><input type="number" id="ui-x" step="1" oninput="updateSelected('left', value)"></div>
+                    <div class="input-group"><label>절대 Y 좌표</label><input type="number" id="ui-y" step="1" oninput="updateSelected('top', value)"></div>
+                </div>
+                <div class="input-group"><label>통합 스케일 (Scale)</label><input type="number" id="ui-scale" step="0.05" oninput="updateSelected('scale', value)"></div>
+            </div>
+
+            <div class="section" id="image-props" style="display:none">
+                <div class="section-title">이미지 세부 설정</div>
+                <div class="input-group">
+                    <label>유형 (Type)</label>
+                    <select id="ui-img-type" onchange="updateSelected('bhImgType', value); toggleImageUI(value);">
+                        <option value="single">Single (단일)</option>
+                        <option value="listener">Listener (게이지)</option>
+                        <option value="sequence">Sequence (애니메이션)</option>
+                    </select>
+                </div>
+                <div class="input-group" id="ui-single-file-wrap">
+                    <label>이미지 파일명</label>
+                    <input type="text" id="ui-file" oninput="updateSelected('bhFile', value)">
+                </div>
+                
+                <div id="ui-seq-fields" style="display:none">
+                    <div class="input-group"><label>프레임 목록 (파일:틱)</label><textarea id="ui-seq-list" rows="4" oninput="updateSelected('bhSeqFiles', value)"></textarea></div>
+                    <div class="input-group">
+                        <label>애니메이션 방식</label>
+                        <select id="ui-anim-type" onchange="updateSelected('bhAnimType', value)">
+                            <option value="loop">Loop (반복)</option>
+                            <option value="play_once">Play Once (1회)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="ui-listener-fields" style="display:none">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                        <div class="input-group"><label>분할 수</label><input type="number" id="ui-split" oninput="updateSelected('bhSplit', value)"></div>
+                        <div class="input-group">
+                            <label>방향</label>
+                            <select id="ui-split-type" onchange="updateSelected('bhSplitType', value)">
+                                <option value="left">Left</option><option value="right">Right</option>
+                                <option value="up">Up</option><option value="down">Down</option>
+                                <option value="circle">Circle</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>리스너 클래스</label>
+                        <select id="ui-class" onchange="updateSelected('bhClass', value); togglePapi(value);">
+                            <option value="placeholder">Placeholder (PAPI)</option>
+                            <option value="health">Health</option>
+                            <option value="food">Food</option>
+                        </select>
+                    </div>
+                    <div id="ui-papi-wrap">
+                        <div class="input-group"><label>현재값 (PAPI)</label><input type="text" id="ui-val" oninput="updateSelected('bhVal', value)"></div>
+                        <div class="input-group"><label>최대값 (PAPI)</label><input type="text" id="ui-max" oninput="updateSelected('bhMax', value)"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section" id="text-props" style="display:none">
+                <div class="section-title">텍스트 세부 설정</div>
+                <div class="input-group"><label>출력 내용 (Pattern)</label><input type="text" id="ui-text" oninput="updateSelected('text', value)"></div>
+                <div class="input-group">
+                    <label>사용할 폰트 (Name)</label>
+                    <select id="ui-font" onchange="updateSelected('bhFont', value)">
+                        <option value="default_font">기본 폰트 (default_font)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="section" id="head-props" style="display:none">
+                <div class="section-title">머리 세부 설정</div>
+                <div class="input-group">
+                    <label>픽셀 (Pixel)</label>
+                    <input type="number" id="ui-head-pixel" value="4" oninput="updateSelected('bhPixel', value)">
+                </div>
+            </div>
+        </div>
+    </aside>
+</main>
+
+<div class="modal-overlay" id="font-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span>🔤 커스텀 폰트 관리자</span>
+            <button class="btn" style="padding:4px 8px;" onclick="closeFontModal()">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="font-list-wrap">
+                <div class="section-title" style="margin-bottom:8px;">등록된 폰트</div>
+                <div id="modal-font-list" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px;"></div>
+                <button class="btn btn-primary" onclick="createNewFont()">+ 새 폰트 추가</button>
+            </div>
+            <div class="font-editor-wrap" id="font-editor-area" style="display:none;">
+                <div class="input-group">
+                    <label>폰트 ID (yml 파일 이름)</label>
+                    <input type="text" id="f-id" placeholder="example_font">
+                </div>
+                <div style="display:grid; grid-template-columns: 2fr 1fr; gap:8px;">
+                    <div class="input-group">
+                        <label>폰트 파일 (.ttf / .otf)</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="f-file" placeholder="파일을 선택하세요" disabled>
+                            <button class="btn" style="white-space: nowrap; padding: 0 12px;" onclick="document.getElementById('font-file-input').click()">📁 찾기</button>
+                        </div>
+                        <input type="file" id="font-file-input" hidden accept=".ttf,.otf" onchange="uploadFontFile(this)">
+                    </div>
+                    <div class="input-group">
+                        <label>스케일 (Scale)</label>
+                        <input type="number" id="f-scale" value="16">
+                    </div>
+                </div>
+
+                <div class="section-title" style="margin-top:10px;">마인크래프트 기본 폰트 설정</div>
+                <label class="checkbox-group"><input type="checkbox" id="f-merge"> merge-default-bitmap</label>
+                <label class="checkbox-group"><input type="checkbox" id="f-unifont"> use-unifont</label>
+                
+                <div class="input-group" style="margin-top:10px;">
+                    <label>포함할 언어 (include) - 쉼표로 구분</label>
+                    <input type="text" id="f-include" placeholder="ex) korean, japan">
+                </div>
+                <div class="input-group" style="margin-top:10px;">
+                    <label>고급 설정 (글리프/비트맵 직접 입력 - YAML)</label>
+                    <textarea id="f-advanced" rows="5" placeholder="images:&#10;  star:&#10;    name: 'star.png'&#10;    x: 0&#10;    y: 0&#10;    scale: 2.0"></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" style="color:#ef4444; display:none;" id="btn-delete-font" onclick="deleteCurrentFont()">삭제</button>
+            <button class="btn btn-primary" onclick="saveCurrentFont()">저장</button>
+        </div>
+    </div>
+</div>
+
+<input type="file" id="img-input" hidden accept="image/*" onchange="uploadImage(this)">
+<input type="file" id="load-input" hidden accept=".json" onchange="loadProject(this)">
+
+<script>
+    const isElectron = typeof require !== 'undefined';
+    let ipcRenderer = null;
+    if (isElectron) {
+        ipcRenderer = require('electron').ipcRenderer;
+        ipcRenderer.on('save-success', (event, msg) => alert("✅ " + msg));
+        ipcRenderer.on('save-error', (event, msg) => alert("❌ " + msg));
+    }
+
+    let baseW = 1920; let baseH = 1080;
+    const canvas = new fabric.Canvas('editor', { backgroundColor: '#000', preserveObjectStacking: true });
+    let count = 0; 
+    let imageAssets = {};
+    let fontAssets = {}; 
+    let projectFonts = {};
+    let currentEditingFontId = null;
+
+    function applyHudRestrictions(obj) {
+        obj.set({ lockUniScaling: true, transparentCorners: false, cornerColor: '#3b82f6', cornerSize: 8, borderColor: '#3b82f6' });
+        obj.setControlsVisibility({ mt: false, mb: false, ml: false, mr: false });
+        return obj;
+    }
+
+    canvas.on('object:moving', function(options) {
+        options.target.set({ left: Math.round(options.target.left), top: Math.round(options.target.top) });
+        updateInspector();
+    });
+
+    canvas.on('object:scaling', function(options) {
+        options.target.set({ left: Math.round(options.target.left), top: Math.round(options.target.top) });
+        updateInspector();
+    });
+
+    function applyResolution() {
+        baseW = parseInt(document.getElementById('ui-canvas-w').value) || 1920;
+        baseH = parseInt(document.getElementById('ui-canvas-h').value) || 1080;
+        const wrapper = document.querySelector('.canvas-wrapper');
+        wrapper.style.width = baseW + 'px'; wrapper.style.height = baseH + 'px';
+        canvas.setWidth(baseW); canvas.setHeight(baseH);
+        resizeCanvasView();
+    }
+
+    let isLightMode = false;
+    function toggleTheme() {
+        isLightMode = !isLightMode;
+        if (isLightMode) { document.documentElement.setAttribute('data-theme', 'light'); document.getElementById('btn-theme').textContent = '🌙 다크 모드'; } 
+        else { document.documentElement.removeAttribute('data-theme'); document.getElementById('btn-theme').textContent = '☀️ 라이트 모드'; }
+    }
+    function togglePanels() {
+        const d = document.getElementById('left-sidebar').style.display === 'none' ? 'flex' : 'none';
+        document.getElementById('left-sidebar').style.display = d;
+        document.getElementById('right-sidebar').style.display = d === 'flex' ? 'block' : 'none';
+        setTimeout(resizeCanvasView, 10);
+    }
+    function resizeCanvasView() {
+        const container = document.querySelector('.canvas-container-view');
+        const wrapper = document.querySelector('.canvas-wrapper');
+        const availableW = container.clientWidth - 60; const availableH = container.clientHeight - 60;
+        const scale = Math.min(availableW / baseW, availableH / baseH);
+        wrapper.style.transform = `scale(${scale})`; canvas.calcOffset(); 
+    }
+    window.addEventListener('resize', resizeCanvasView); applyResolution();
+
+    function addText() {
+        count++;
+        const obj = new fabric.IText('BetterHud Text', { left: 50, top: 50, originX: 'left', originY: 'top', fontSize: 20, fill: '#fff', bhType: 'text', bhId: 'text_'+count, bhFont: 'default_font', fontFamily: 'Pretendard', bhStatic: 'true' });
+        applyHudRestrictions(obj); canvas.add(obj).setActiveObject(obj);
+    }
+
+    function uploadImage(input) {
+        const file = input.files[0]; if(!file) return; imageAssets[file.name] = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            fabric.Image.fromURL(e.target.result, (img) => { 
+                count++; img.set({ left: 50, top: 50, originX: 'left', originY: 'top', bhType: 'image', bhImgType: 'single', bhId: file.name.split('.')[0], bhFile: file.name, bhStatic: 'true', bhSeqFiles: '', bhAnimType: 'loop', bhSplit: 10, bhSplitType: 'left', bhClass: 'placeholder', bhVal: '%player_health%', bhMax: '%player_max_health%' }); 
+                img.scaleToWidth(150); applyHudRestrictions(img); canvas.add(img).setActiveObject(img); 
+            });
+        }; reader.readAsDataURL(file); input.value = '';
+    }
+
+    function uploadFontFile(input) {
+        const file = input.files[0]; if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => { fontAssets[file.name] = e.target.result; document.getElementById('f-file').value = file.name; };
+        reader.readAsDataURL(file); input.value = '';
+    }
+
+    function addHead() {
+        count++; 
+        const obj = new fabric.Rect({ left: 50, top: 50, originX: 'left', originY: 'top', width: 32, height: 32, fill: '#fcd34d', bhType: 'head', bhId: 'test_head_'+count, bhPixel: 4, bhStatic: 'true' }); 
+        applyHudRestrictions(obj); canvas.add(obj).setActiveObject(obj);
+    }
+    function deleteObject() { const obj = canvas.getActiveObject(); if(obj) canvas.remove(obj); }
+
+    canvas.on({
+        'selection:created': updateInspector, 'selection:updated': updateInspector,
+        'selection:cleared': () => { document.getElementById('no-selection').style.display = 'block'; document.getElementById('inspector-ui').style.display = 'none'; updateLayerList(); }
+    });
+
+    function updateInspector() {
+        const o = canvas.getActiveObject(); if(!o) return;
+        document.getElementById('no-selection').style.display = 'none'; document.getElementById('inspector-ui').style.display = 'block';
+        document.getElementById('ui-x').value = Math.round(o.left); document.getElementById('ui-y').value = Math.round(o.top);
+        document.getElementById('ui-scale').value = o.scaleX.toFixed(2); document.getElementById('ui-id').value = o.bhId || ''; document.getElementById('ui-static').value = o.bhStatic || 'true';
+        document.getElementById('text-props').style.display = o.bhType === 'text' ? 'block' : 'none';
+        document.getElementById('image-props').style.display = o.bhType === 'image' ? 'block' : 'none';
+        document.getElementById('head-props').style.display = o.bhType === 'head' ? 'block' : 'none';
+
+        if(o.bhType === 'image') {
+            document.getElementById('ui-img-type').value = o.bhImgType; document.getElementById('ui-file').value = o.bhFile; document.getElementById('ui-seq-list').value = o.bhSeqFiles;
+            toggleImageUI(o.bhImgType);
+            document.getElementById('ui-anim-type').value = o.bhAnimType || 'loop'; document.getElementById('ui-split').value = o.bhSplit || 10; document.getElementById('ui-split-type').value = o.bhSplitType || 'left';
+            document.getElementById('ui-class').value = o.bhClass || 'placeholder'; document.getElementById('ui-val').value = o.bhVal || ''; document.getElementById('ui-max').value = o.bhMax || ''; togglePapi(o.bhClass);
+        } else if(o.bhType === 'text') {
+            document.getElementById('ui-text').value = o.text;
+            const fontSelect = document.getElementById('ui-font');
+            if (!Array.from(fontSelect.options).some(opt => opt.value === o.bhFont)) { const opt = document.createElement('option'); opt.value = o.bhFont; opt.textContent = o.bhFont + " (미등록)"; fontSelect.appendChild(opt); }
+            fontSelect.value = o.bhFont || 'default_font';
+        } else if(o.bhType === 'head') { 
+            document.getElementById('ui-head-pixel').value = o.bhPixel || 4; 
+        }
+        updateLayerList();
+    }
+
+    function updateSelected(key, val) {
+        const o = canvas.getActiveObject(); if(!o) return;
+        if(key === 'left') o.set('left', Math.round(parseFloat(val))); else if(key === 'top') o.set('top', Math.round(parseFloat(val))); 
+        else if(key === 'scale') { o.set('scaleX', parseFloat(val)); o.set('scaleY', parseFloat(val)); } else if(key === 'text') o.set('text', val); 
+        else if(key === 'bhFont') { o.set('bhFont', val); o.set('fontFamily', val === 'default_font' ? 'Pretendard' : val); }
+        else o[key] = val;
+        canvas.renderAll(); updateLayerList();
+    }
+
+    function toggleImageUI(type) { document.getElementById('ui-single-file-wrap').style.display = (type !== 'sequence') ? 'block' : 'none'; document.getElementById('ui-seq-fields').style.display = type === 'sequence' ? 'block' : 'none'; document.getElementById('ui-listener-fields').style.display = type === 'listener' ? 'block' : 'none'; }
+    function togglePapi(cls) { document.getElementById('ui-papi-wrap').style.display = (cls === 'placeholder') ? 'block' : 'none'; }
+
+    function updateLayerList() {
+        const list = document.getElementById('layer-list'); list.innerHTML = '';
+        canvas.getObjects().slice().reverse().forEach(obj => {
+            const item = document.createElement('div'); item.className = 'layer-item' + (canvas.getActiveObject() === obj ? ' active' : '');
+            item.innerHTML = `<span>${obj.bhId || obj.bhType}</span><span style="font-size:10px; opacity:0.5;">${obj.bhType.toUpperCase()}</span>`;
+            item.onclick = () => { canvas.setActiveObject(obj); canvas.renderAll(); }; list.appendChild(item);
+        });
+    }
+
+    function updateFontDropdown() {
+        const select = document.getElementById('ui-font'); const currentVal = select.value;
+        select.innerHTML = '<option value="default_font">기본 폰트 (default_font)</option>';
+        Object.keys(projectFonts).forEach(fontId => { const opt = document.createElement('option'); opt.value = fontId; opt.textContent = fontId; select.appendChild(opt); });
+        if (currentVal && (currentVal === 'default_font' || projectFonts[currentVal])) select.value = currentVal;
+        else if (canvas.getActiveObject() && canvas.getActiveObject().bhType === 'text') select.value = canvas.getActiveObject().bhFont || 'default_font';
+    }
+
+    function openFontModal() { document.getElementById('font-modal').style.display = 'flex'; renderFontList(); if(Object.keys(projectFonts).length === 0) createNewFont(); }
+    function closeFontModal() { document.getElementById('font-modal').style.display = 'none'; }
+    
+    function renderFontList() {
+        const list = document.getElementById('modal-font-list'); list.innerHTML = '';
+        Object.keys(projectFonts).forEach(fontId => {
+            const el = document.createElement('div'); el.className = 'font-item' + (currentEditingFontId === fontId ? ' active' : '');
+            el.innerHTML = `<span>${fontId}</span><span style="font-size:10px;">${projectFonts[fontId].file || '기본'}</span>`; el.onclick = () => editFont(fontId); list.appendChild(el);
+        }); updateFontDropdown();
+    }
+
+    function createNewFont() {
+        currentEditingFontId = null; document.getElementById('font-editor-area').style.display = 'flex'; document.getElementById('btn-delete-font').style.display = 'none';
+        document.getElementById('f-id').value = ''; document.getElementById('f-file').value = ''; document.getElementById('f-scale').value = '16'; document.getElementById('f-merge').checked = false; document.getElementById('f-unifont').checked = false; document.getElementById('f-include').value = ''; document.getElementById('f-advanced').value = ''; renderFontList();
+    }
+
+    function editFont(fontId) {
+        currentEditingFontId = fontId; const data = projectFonts[fontId]; document.getElementById('font-editor-area').style.display = 'flex'; document.getElementById('btn-delete-font').style.display = 'block';
+        document.getElementById('f-id').value = fontId; document.getElementById('f-file').value = data.file || ''; document.getElementById('f-scale').value = data.scale || 16; document.getElementById('f-merge').checked = data.merge || false; document.getElementById('f-unifont').checked = data.unifont || false; document.getElementById('f-include').value = data.include ? data.include.join(', ') : ''; document.getElementById('f-advanced').value = data.advancedYml || ''; renderFontList();
+    }
+
+    function saveCurrentFont() {
+        const oldId = currentEditingFontId; const newId = document.getElementById('f-id').value.trim(); if(!newId) { alert("폰트 ID를 입력해주세요!"); return; }
+        const fontData = { file: document.getElementById('f-file').value.trim(), scale: parseInt(document.getElementById('f-scale').value) || 16, merge: document.getElementById('f-merge').checked, unifont: document.getElementById('f-unifont').checked, advancedYml: document.getElementById('f-advanced').value.trim() };
+        const includeStr = document.getElementById('f-include').value.trim(); if(includeStr) fontData.include = includeStr.split(',').map(s => s.trim());
+        if(oldId && oldId !== newId) delete projectFonts[oldId]; projectFonts[newId] = fontData; currentEditingFontId = newId;
+        
+        if (fontData.file && fontAssets[fontData.file]) {
+            const fontUrl = fontAssets[fontData.file]; const font = new FontFace(newId, `url(${fontUrl})`);
+            font.load().then(loadedFace => { document.fonts.add(loadedFace); canvas.getObjects().forEach(o => { if (o.bhType === 'text' && o.bhFont === newId) o.set('fontFamily', newId); }); canvas.requestRenderAll(); }).catch(err => console.error("폰트 로드 실패:", err));
+        } renderFontList();
+    }
+
+    function deleteCurrentFont() { if(currentEditingFontId && confirm('해당 폰트를 삭제하시겠습니까?')) { delete projectFonts[currentEditingFontId]; document.getElementById('font-editor-area').style.display = 'none'; renderFontList(); } }
+
+    function generateFullData() {
+        const layoutId = document.getElementById('ui-layout-id').value;
+        const hudId = document.getElementById('ui-hud-id').value;
+
+        let textsObj = {}, imagesObj = {}, headsObj = {};
+        let tIdx = 0, iIdx = 0, hIdx = 0;
+        let hasTexts = false, hasImages = false, hasHeads = false;
+        let imageFiles = {}; 
+        let headFiles = {}; // 🚨 머리 파일 전용 객체
+
+        canvas.getObjects().forEach(o => {
+            const x = Math.round(o.left); 
+            const y = Math.round(o.top); 
+            const scale = Number(o.scaleX.toFixed(2));
+            
+            if (o.bhType === 'text') {
+                textsObj[tIdx++] = { name: o.bhFont, pattern: o.text, x, y, scale };
+                hasTexts = true;
+            } 
+            else if (o.bhType === 'head') {
+                headsObj[hIdx++] = { name: o.bhId, x, y };
+                
+                // 🚨 머리는 headFiles에 저장
+                let headImg = `${o.bhId}:\n  pixel: ${o.bhPixel || 4}\n`;
+                headFiles[o.bhId] = headImg;
+                
+                hasHeads = true;
+            } 
+            else if (o.bhType === 'image') {
+                imagesObj[iIdx++] = { name: o.bhId, x, y, scale, "static-scale": o.bhStatic === "true" };
+                hasImages = true;
+                
+                let img = `${o.bhId}:\n  type: ${o.bhImgType}\n`;
+                if (o.bhImgType === 'sequence') {
+                    img += `  files:\n`;
+                    o.bhSeqFiles.split('\n').forEach(line => { 
+                        if (line.trim()) img += `    - "${line.trim()}"\n`; 
+                    });
+                    img += `  setting:\n    animation-type: ${o.bhAnimType}`;
+                } else {
+                    img += `  file: "${o.bhFile}"\n`;
+                    if (o.bhImgType === 'listener') {
+                        img += `  split: ${o.bhSplit}\n  split-type: ${o.bhSplitType}\n  setting:\n    listener:\n      class: ${o.bhClass}`;
+                        if (o.bhClass === 'placeholder') {
+                            img += `\n      value: "${o.bhVal}"\n      max: "${o.bhMax}"`;
+                        }
+                    }
+                }
+                imageFiles[o.bhId] = img;
+            }
+        });
+
+        let layoutYmlObj = {};
+        if (hasTexts) layoutYmlObj.texts = textsObj;
+        if (hasImages) layoutYmlObj.images = imagesObj;
+        if (hasHeads) layoutYmlObj.heads = headsObj;
+        let layoutYml = { [layoutId]: layoutYmlObj };
+        
+        let hudYml = `${hudId}:\n  layouts:\n    1:\n      name: ${layoutId}\n      x: 0\n      y: 0`;
+        
+        let fontFiles = {};
+        Object.keys(projectFonts).forEach(fontId => {
+            const d = projectFonts[fontId];
+            let ymlStr = `${fontId}:\n`;
+            if (d.file) ymlStr += `  file: "${d.file}"\n`; 
+            if (d.scale) ymlStr += `  scale: ${d.scale}\n`;
+            if (d.merge) ymlStr += `  merge-default-bitmap: true\n`;
+            if (d.unifont) ymlStr += `  use-unifont: true\n`;
+            if (d.include && d.include.length > 0) { ymlStr += `  include:\n`; d.include.forEach(lang => ymlStr += `    - ${lang}\n`); }
+            if (d.advancedYml) { const indented = d.advancedYml.split('\n').map(l => '  ' + l).join('\n'); ymlStr += indented + '\n'; }
+            fontFiles[fontId] = ymlStr;
+        });
+
+        return { hudId, layoutId, hudYml, layoutYml, imageFiles, headFiles, fontFiles };
+    }
+
+    async function directSaveToFolder() {
+        if (!isElectron) { alert("이 기능은 Electron 데스크톱 앱에서만 작동합니다.\n웹 브라우저에서는 'ZIP 추출' 기능을 이용해주세요."); return; }
+        const folderPath = await ipcRenderer.invoke('select-folder'); if (!folderPath) return;
+        const { hudId, layoutId, hudYml, layoutYml, imageFiles, headFiles, fontFiles } = generateFullData();
+        let payload = [];
+        payload.push({ path: `huds/${hudId}.yml`, content: hudYml, encoding: 'utf8' });
+        payload.push({ path: `layouts/${layoutId}.yml`, content: jsyaml.dump(layoutYml), encoding: 'utf8' });
+        
+        for(const [id, content] of Object.entries(imageFiles)) { payload.push({ path: `images/${id}.yml`, content: content, encoding: 'utf8' }); }
+        // 🚨 heads 폴더 분리 저장
+        for(const [id, content] of Object.entries(headFiles)) { payload.push({ path: `heads/${id}.yml`, content: content, encoding: 'utf8' }); }
+        
+        for(const [fontId, content] of Object.entries(fontFiles)) { payload.push({ path: `texts/${fontId}.yml`, content: content, encoding: 'utf8' }); }
+        for(const [name, fileObj] of Object.entries(imageAssets)) { const base64Data = await readFileAsBase64(fileObj); const cleanBase64 = base64Data.split(',')[1]; payload.push({ path: `assets/${name}`, content: cleanBase64, encoding: 'base64' }); }
+        for(const [name, dataUrl] of Object.entries(fontAssets)) { const cleanBase64 = dataUrl.split(',')[1]; payload.push({ path: `fonts/${name}`, content: cleanBase64, encoding: 'base64' }); }
+        ipcRenderer.send('save-files', { basePath: folderPath, files: payload });
+    }
+
+    function readFileAsBase64(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = err => reject(err); reader.readAsDataURL(file); }); }
+
+    async function exportZip() {
+        const { hudId, layoutId, hudYml, layoutYml, imageFiles, headFiles, fontFiles } = generateFullData();
+        const zip = new JSZip();
+        zip.folder("huds").file(`${hudId}.yml`, hudYml);
+        zip.folder("layouts").file(`${layoutId}.yml`, jsyaml.dump(layoutYml));
+        
+        const imgFolder = zip.folder("images"); 
+        for(const [id, content] of Object.entries(imageFiles)) imgFolder.file(`${id}.yml`, content);
+        
+        // 🚨 heads 폴더 분리 압축
+        const headsFolder = zip.folder("heads"); 
+        for(const [id, content] of Object.entries(headFiles)) headsFolder.file(`${id}.yml`, content);
+        
+        const textsFolder = zip.folder("texts"); 
+        for(const [fontId, content] of Object.entries(fontFiles)) textsFolder.file(`${fontId}.yml`, content);
+        
+        const assetsFolder = zip.folder("assets"); 
+        for(const [name, file] of Object.entries(imageAssets)) assetsFolder.file(name, file);
+        
+        const fontsFolder = zip.folder("fonts"); 
+        for(const [name, dataUrl] of Object.entries(fontAssets)) { const cleanBase64 = dataUrl.split(',')[1]; fontsFolder.file(name, cleanBase64, { base64: true }); }
+        
+        const content = await zip.generateAsync({type:"blob"}); saveAs(content, `BetterHud_Project_${hudId}.zip`);
+    }
+
+    function saveProject() {
+        const json = canvas.toJSON(['bhType','bhId','bhImgType','bhFile','bhStatic','bhPixel','bhSeqFiles','bhAnimType','bhSplit','bhSplitType','bhClass','bhVal','bhMax']);
+        json.workspace = { w: baseW, h: baseH };
+        json.fontsData = projectFonts;
+        json.fontAssets = fontAssets; 
+        saveAs(new Blob([JSON.stringify(json)], {type: "application/json"}), "project_full.json");
+    }
+
+    function loadProject(input) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const data = JSON.parse(e.target.result);
+            if (data.workspace) { 
+                document.getElementById('ui-canvas-w').value = data.workspace.w; document.getElementById('ui-canvas-h').value = data.workspace.h; applyResolution(); 
+            }
+            if (data.fontsData) { projectFonts = data.fontsData; }
+            if (data.fontAssets) {
+                fontAssets = data.fontAssets;
+                Object.keys(projectFonts).forEach(fontId => {
+                    const fileName = projectFonts[fontId].file;
+                    if (fileName && fontAssets[fileName]) {
+                        const font = new FontFace(fontId, `url(${fontAssets[fileName]})`);
+                        font.load().then(loadedFace => { document.fonts.add(loadedFace); canvas.requestRenderAll(); }).catch(err => console.error("복원 중 폰트 로드 실패:", err));
+                    }
+                });
+            }
+            updateFontDropdown();
+            canvas.loadFromJSON(data, () => { canvas.getObjects().forEach(obj => applyHudRestrictions(obj)); canvas.renderAll(); updateLayerList(); resizeCanvasView(); });
+        };
+        reader.readAsText(input.files[0]);
+    }
+</script>
+</body>
+</html>
